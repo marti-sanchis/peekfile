@@ -21,34 +21,34 @@ fi
 
 ####################################################   FUNCTION FOR ERRORS   ####################################################
 
-arg_err(){
-	exit_code="$1"
-	[[ "$exit_code" -eq 10 ]] && {
-		echo "\nERROR: arg1 is not an existing directory and/or arg2 is not an integer." 
+err(){
+	err_flag="$1"
+	[[ "$err_flag" -eq 1 ]] && {
+		echo "\nERROR: arg1 is not an existing directory and/or arg2 is not a correct number of lines." 
 		echo "++ Use fastascan help for more info.\n"
-		exit 10
-	} || [[ "$exit_code" -eq 11 ]] && {
-		echo "\nERROR: arg1 is not an existing directory or a correct number of lines (integer)." 
+		exit 1
+	} || [[ "$err_flag" -eq 2 ]] && {
+		echo "\nERROR: arg1 is not an existing directory or a correct number of lines." 
 		echo "++ Use fastascan help for more info.\n"
-		exit 11
-	} || [[ "$exit_code" -eq 12 ]] && {
-		echo "\nERROR: Arguments are reversed. First argument should be directory and second argument should be number of lines to print." 
+		exit 1
+	} || [[ "$err_flag" -eq 3 ]] && {
+		echo "\nERROR: Arguments are reversed." 
 		echo "++ Use fastascan help for more info.\n"
-		exit 12
+		exit 1
 	}
 }
 #################################################   CONTROL FOR THE ARGUMENTS   #################################################
 #------------------------------------------   Functions for setting directory and N  --------------------------------------------
 
 set_path(){
-	[[ $1 != "$PWD" ]] && {
-		path="$1"
-		echo "\nSETTINGS:"
+	[[ -n "$1" ]] && {
+		path=$(realpath "$1")
+		echo -e "\nSETTINGS:"
 		echo "# Scanning directory "$path" and subdirectories."
 	} || {
 		path="$PWD"
-		echo "\nSETTINGS:"
-		echo "# Scanning current directory (by default) and subdirectories."
+		echo -e "\nSETTINGS:"
+		echo "# Scanning current directory and subdirectories by default."
 	}
 }
 
@@ -61,51 +61,99 @@ set_N(){
 		echo "# No lines printed by default.\n"
 	}
 }
-#--------------------------------------------   Setting directory and N correctly   ---------------------------------------------
-if [[ -n "$1" && -n "$2"  ]]
-then
-	[[ "$1" =~ ^[0-9] && "$2" =~ .*/.* ]] && { 
-		arg_err 12
-	}
+
+peek(){
+	print_N="$2" 
+	total_lines=$(wc -l < "$1")
 	
-	[[ -d "$1" && "$2" =~ ^[0-9]+$ ]] && {
+	[[ "$print_N" -eq 0 ]] && return
+	
+	if [[ "$total_lines" -le $((2 * "$print_N")) ]]; then 
+		cat "$1"
+		echo "# Full content of the file."
+	else
+  		echo "\n# Showing the first and last "$print_N" lines of the file."
+		head -n "$print_N" "$1"
+		echo "..."
+		tail -n "$print_N" "$1" 
+	fi
+}
+
+#--------------------------------------------   Setting directory and N correctly   ---------------------------------------------
+if [[ -n "$1" && -n "$2"  ]]; then
+	[[ "$1" =~ ^[0-9] && ("$2" =~ .*/.* || "$2" == \.) ]] && err 3 # if both arguments are provided, ensure they are in the correct order
+	if [[ -d "$1" && "$2" =~ ^[0-9]+$ ]]; then
 		set_path "$1"
 		set_N "$2"
-	} || {
-		arg_err 10
-	}
+	else
+		err 1
+	fi
 	
-elif [[ -n "$1" && -z "$2" ]]
-then
-	[[ -d "$1" ]] && {
+elif [[ -n "$1" && -z "$2" ]]; then
+	if [[ -d "$1" ]]; then
 		set_path "$1"
 		set_N 0
-	} || [[ "$1" =~ ^[0-9]+$ ]] && {
-		set_path "$PWD"
+	elif [[ "$1" =~ ^[0-9]+$ ]]; then
+		set_path "" #set to null to use and print that current directory is used by default
 		set_N "$1"
-	} || {
-		arg_err 11
-	}
+	else
+		err 2
+	fi
 else
-	set_path "$PWD"
+	set_path "" #set to null to use and print that current directory is used by default
 	set_N 0
 fi
 
 ####################################   SCANNING DIRECTORY AND SUBDIRECTORIES FOR FA/FASTAS   ####################################
 #------------------------------------------------   FASTA count and unique   ----------------------------------------------------
-
-fastacount=$(find . -type f -name "*.fa" -or -name "*.fasta" | wc -l)
-uniqID_total=$(cat $(find . -type f -name "*.fa" -or -name "*.fasta") | awk '/>/{print $1}' | sort | uniq | wc -l)
-
 echo "SCAN RESULTS:"
-echo "# There are "$fastacount" FASTA files in the directory provided and its subdirectories."
-echo "# These files cointain a total of "$uniqID_total" different sequence IDs.\n"
+
+files=$(find "$path" \( -type f -o -type l \) \( -name "*.fa" -or -name "*.fasta" \) )
+
+if [[ -n "$files" ]]; then
+	fastacount=$(echo "$files" | wc -l)
+	uniqID_total=$(cat $files | awk '/>/{print $1}' | sort | uniq | wc -l)
+else
+	echo "# No fasta files have been found in "$path" and subdirectories.\n"
+	exit 0
+fi
+
+echo "# Count of files: "$fastacount""
+echo "# Total unique sequence IDs: "$uniqID_total".\n"
 
 
 #-----------------------------------------------------   FASTA header   ---------------------------------------------------------
 
-find . -type f -name "*.fa" -or -name "*.fasta" | while read i
-do
-	echo $i
+echo "$files" | while read file; do
+	echo "########### Filename: $(basename "$file") ###########" 
+	
+	# Check if the file is a symlink
+	if [[ -h "$file" ]]; then
+		echo "# Is this a symlink? YES"
+	else
+		echo "# Is this a symlink? NO"
+	fi
+	
+	# Count the number of headers in the file
+	seqcount=$(grep -c "^>" $file)
+	echo "# Count of sequences: "$seqcount""
+	
+	# If the file doesn't contain any header, omit the rest of operations.
+	[[ "$seqcount" == 0 ]]  && (echo ) && continue
+	
+	# Cleaning the sequences (removing headers and any character apart from letters) and merging them.
+	cleanseq=$(cat "$file" | awk '!/^>/{ORS="";print}' | sed 's/[^A-Za-z]//g')
+	seqlength=$(echo -n "$cleanseq" | wc -c) # Compute total length.
+	echo "# Total length of sequences: "$seqlength""
+		
+	# Determine the type of sequence
+	if [[ ! $(echo -n "$cleanseq") =~ [TtKk] ]]; then
+    		echo "# Sequence type: ARN"
+    	elif [[ ! $(echo -n "$cleanseq") =~ [UuKk] ]]; then
+    		echo "# Sequence type: ADN"
+    	else
+    		echo "# Sequence type: PROTEIN"
+	fi
+	peek "$file" "$N"
+	echo # add a final newline
 done
-
