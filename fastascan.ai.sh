@@ -1,26 +1,24 @@
 #!/usr/bin/env bash
-
-##########################################   HELP ARGUMENT: INFO ABOUT THE FUNCTION   ###########################################
+###############################################   INITIALISING SOME VARIABLES   #################################################
 shopt -s expand_aliases  # Habilita l'ús de alias al script
 alias echo="echo -e"
 
-if [[ "$1" == "help" ]]; 
-then
-echo "\n# This function has the form fastascan <arg1> <arg2>, and so it has two optional independent arguments:"
-echo "       - arg1. search directory, as an existing absolute path or relative path from current path."
-echo "       - arg2. number of lines to print for each file, as an integer."
-echo "\n# Either arg1 or arg2 can be set as the only argument and the other will be set by default."
-echo "# Both arguments can be omitted and will be set by default to current directory and 0 lines."
-echo "# However, when the two arguments are provided, they must follow the order indicated: search directory in arg1 and number of lines in arg2.\n"
-echo "# EXIT CODE: "
-echo "      - Exit 10 corresponds to setting two arguments and one or both are wrong."
-echo "      - Exit 11 corresponds to setting one wrong argument."
-echo "      - Exit 12 corresponds to setting two arguments in wrong order.\n"
-exit 0
-fi
+# Default variables
+path=""
+N=0
+show_help=false
 
-####################################################   FUNCTION FOR ERRORS   ####################################################
-
+##########################################   HELP FUNCTION: INFO ABOUT THE FUNCTION   ###########################################
+show_usage() {
+    echo "Use: $0 [options]"
+    echo "Options:"
+    echo "  -d <directory>    Specify the directory to scan. Subdirectories are also scanned."
+    echo "  -n <n lines>      Specify number (integer) of first and last lines to show for each file."
+    echo "  -h                Show usage."
+    exit 0
+}
+#########################################################   FUNCTIONS   #########################################################
+#-------------------------------------------   Function for errors in the arguments  --------------------------------------------
 err(){
 	err_flag="$1"
 	[[ "$err_flag" -eq 1 ]] && {
@@ -37,7 +35,7 @@ err(){
 		exit 1
 	}
 }
-#################################################   CONTROL FOR THE ARGUMENTS   #################################################
+
 #------------------------------------------   Functions for setting directory and N  --------------------------------------------
 
 set_path(){
@@ -61,7 +59,7 @@ set_N(){
 		echo "# No lines printed by default.\n"
 	}
 }
-
+#--------------------------------------------   Functions controlling for header  -----------------------------------------------
 peek(){
 	print_N="$2" 
 	total_lines=$(wc -l < "$1")
@@ -79,29 +77,38 @@ peek(){
 	fi
 }
 
+padding() {
+    name="Filename: $(basename "$2")"
+    total_length=$(( ${#name} + 14 ))  
+    if (( total_length < "$1" )); then
+        extra_spaces=$(("$1" - total_length))
+        left_padding=$((extra_spaces / 2))
+        right_padding=$((extra_spaces - left_padding))
+    else
+        left_padding=0
+        right_padding=0
+    fi
+    printf "%s" "########### "
+    printf "%*s" $left_padding ""  
+    printf "%s" "$name"
+    printf "%*s" $right_padding ""  
+    printf "%s\n" " ###########"
+}
+
+#########################################################   ARGUMENTS   #########################################################
 #--------------------------------------------   Setting directory and N correctly   ---------------------------------------------
-if [[ -n "$1" && -n "$2"  ]]; then
-	[[ "$1" =~ ^[0-9] && ("$2" =~ .*/.* || "$2" == \.) ]] && err 3 # if both arguments are provided, ensure they are in the correct order
-	if [[ -d "$1" && "$2" =~ ^[0-9]+$ ]]; then
-		set_path "$1"
-		set_N "$2"
-	else
-		err 1
-	fi
-	
-elif [[ -n "$1" && -z "$2" ]]; then
-	if [[ -d "$1" ]]; then
-		set_path "$1"
-		set_N 0
-	elif [[ "$1" =~ ^[0-9]+$ ]]; then
-		set_path "" #set to null to use and print that current directory is used by default
-		set_N "$1"
-	else
-		err 2
-	fi
-else
-	set_path "" #set to null to use and print that current directory is used by default
-	set_N 0
+while getopts "d:n:h" opt; do
+    case "$opt" in
+        d) path="$OPTARG" ;;  # Set path variable with argument after -d
+        n) N="$OPTARG" ;;      # Set number of lines with argument after -n
+        h) show_help=true ;;       # Activate help
+        *) show_usage ;;           # Show help in case of invalid arguments
+    esac
+done
+
+# Show help if demanded
+if $show_help; then
+    show_usage
 fi
 
 ####################################   SCANNING DIRECTORY AND SUBDIRECTORIES FOR FA/FASTAS   ####################################
@@ -123,13 +130,14 @@ echo "# Total unique sequence IDs: "$uniqID_total".\n"
 
 
 #-----------------------------------------------------   FASTA header   ---------------------------------------------------------
-
+length=60
 echo "$files" | while read file; do
-	echo "########### Filename: $(basename "$file") ###########" 
+	padding "$length" "$file" 
 	
 	# Check if the file is a symlink
 	if [[ -h "$file" ]]; then
 		echo "# Is this a symlink? YES"
+		[[ ! -e "$file" ]] && echo "# This symlink is broken.\n" && break # ChatGPT correction:
 	else
 		echo "# Is this a symlink? NO"
 	fi
