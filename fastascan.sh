@@ -125,6 +125,7 @@ echo "# Total unique sequence IDs: "$uniqID_total".\n"
 #-----------------------------------------------------   FASTA header   ---------------------------------------------------------
 # Iterate for every fasta found. 
 # NOTE: here I didn't controll for broken symlink, and chatgpt suggested it for fastascan.ai.  
+# NOTE: moreover, I didn't consider the case for files without permissions. I account for that also in fastascan.ai.
 echo "$files" | while read file; do					
 	echo "########### Filename: $(basename "$file") ###########" 			# Print a header with the filename
 	
