@@ -105,60 +105,75 @@ peek(){											# This function will have two arguments: $1 is the file to cat
 	fi
 }
 #------------------------------------------------   FASTA count and unique   ----------------------------------------------------
+# NOTE!!: here I didn't account for broken symlink or files without permissions, and chatgpt suggested it for fastascan.ai.
+# These files are counted in total fasta files, and later they generate some std error in cats and greps, but don't affect to the uniqID computation. 
+# And after their individual header also has some errors, but overall they don't mess with the whole script. 
+
 echo "SCAN RESULTS:"
 files=$(find "$path" \( -type f -o -type l \) \( -name "*.fa" -or -name "*.fasta" \) )	# Do only one search, for files or symlinks that are fa/fasta. Assign to variable $files.
-
-# If bash finds any fasta (tested as $files is not null?)...
-if [[ -n "$files" ]]; then
-	fastacount=$(echo "$files" | wc -l)						# Count how many are there. With quotation of var, output is not squished to one line.
-# Compute the total number of unique IDs in all valid files.
-	uniqID_total=$(cat $files | awk '/>/{print $1}' | sort | uniq | wc -l)		# Cat all files, get all non-header lines, print seq ID, get how many unique IDs there are
-else											# If $files is null, exit 0 (consistent with find exit code for not finding files)
-	echo "# No fasta files have been found in "$path" and subdirectories.\n"
+[[ -z "$files" ]] && {									# If bash doesn't find any fasta (tested as $files is null?), exit 0
+	echo "# No fasta files have been found in "$path" and subdirectories.\n"	
 	exit 0
-fi
+}
 
-echo "# Count of files: "$fastacount""
-echo "# Total unique sequence IDs: "$uniqID_total".\n"
+# If variable $files is not null (as it didn't exited)
 
+fastacount=$(echo "$files" | wc -l)							# Count how many are there. With quotation of var, output is not squished to one line.
+echo "# Count of files: "$fastacount""							# Print the number of fasta files encountered
+
+# Compute the total number of unique IDs in all files. 
+# Tried to use cat "$files", but filenames with spaces give problems. Create a temporal file to store all content, using while read which enebales correct read of spaces in filenames
+
+temp_file=$(mktemp)									# Command mktemp creates a temporal file in path /temp, and prints the name
+echo "$files" | while read file; do 							# While loop that enables using quoting in $files. 
+	cat "$file"									# Cat each file, maintaining the structure.
+done > "$temp_file"									# And redirect all to the temporal file
+uniqID_total=$(cat "$temp_file" | awk '/>/{print $1}' | sort | uniq | wc -l)		# Cat all files, get all non-header lines, print seq ID, get how many unique IDs there are.
+rm "$temp_file"										# Remove the temporal file
+echo "# Total unique sequence IDs: "$uniqID_total".\n"					# Print the total number of unique sequence IDs
 
 #-----------------------------------------------------   FASTA header   ---------------------------------------------------------
-# Iterate for every fasta found. 
-# NOTE: here I didn't controll for broken symlink, and chatgpt suggested it for fastascan.ai.  
-# NOTE: moreover, I didn't consider the case for files without permissions. I account for that also in fastascan.ai.
-echo "$files" | while read file; do					
+echo "$files" | while read file; do							# Iterate for every fasta found. 				
 	echo "########### Filename: $(basename "$file") ###########" 			# Print a header with the filename
 	
-	# Check if the file is a symlink
+# Check if the file is a symlink
+	
 	if [[ -h "$file" ]]; then							# Check if the file is a symlink with -h condition
 		echo "# Is this a symlink? YES"
 	else
 		echo "# Is this a symlink? NO"
 	fi
 	
-	# Count the number of headers in the file
+# Count the number of headers in the file
+	
 	seqcount=$(grep -c "^>" "$file")						# Count with grep -c the number of headers/sequences in the file
 	echo "# Count of sequences: "$seqcount""
 	
-	# If the file doesn't contain any header, omit the rest of operations (skip iteration).
+# If the file doesn't contain any header, omit the rest of operations (skip iteration).
+	
 	[[ "$seqcount" == 0 ]]  && (echo ) && continue
 	
-	# Cleaning the sequences and merging them.
+# Cleaning the sequences and merging them.
+	
 	cleanseq=$(cat "$file" | awk '!/^>/{ORS="";print}' | sed 's/[^A-Za-z]//g')	# Cat $file, with awk get non-headers, print everything using nothing as separator (ORS="") 
 											# With sed eliminate everything but letters (case insensitive)
-	seqlength=$(echo -n "$cleanseq" | wc -c)					# Get the total length of $cleanseq (containing all sequences in the file)
+	seqlength=$(echo -n "$cleanseq" | wc -c)					# Get the total length of $cleanseq (containing all sequences in the file) with wc -c
 	echo "# Total length of sequences: "$seqlength""
 		
-	# Determine the type of sequence
-	if [[ ! $(echo -n "$cleanseq") =~ [TtKk] ]]; then				# If sequence doesn't contain thymine or lysine it should be ARN
+# Determine the type of sequence. I use methionine because should be present in every protein, but also usea lysine (more aboundant than M) just in case it's a fragment of protein.
+
+	if [[ ! $(echo -n "$cleanseq") =~ [TtMmKk] ]]; then				# If sequence doesn't contain thymine, methionine or lysine it should be ARN
     		echo "# Sequence type: ARN"
-    	elif [[ ! $(echo -n "$cleanseq") =~ [UuKk] ]]; then				# If sequence doesn't contain uracil or lysine it should be ADN
+    	elif [[ ! $(echo -n "$cleanseq") =~ [UuMmKk] ]]; then				# If sequence doesn't contain uracil, methionine or lysine it should be ADN
     		echo "# Sequence type: ADN"
-    	else										# If not ADN or ARN, sequence should be from protein.
-    		echo "# Sequence type: PROTEIN"
+    	elif [[ $(echo -n "$cleanseq") =~ [MmKk] ]];then
+    		echo "# Sequence type: PROTEIN"						# If contain methionine or lysine, sequence should be from protein.
+    	else
+    		echo "# Sequence type not recognised"					# If everything was negative, print enable to identify type of seq.
 	fi
 	
 # Finally print the content of file using the peek() function.
+
 	peek "$file" "$N"
 	echo # add a final newline
 done
