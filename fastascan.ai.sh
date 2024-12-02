@@ -135,9 +135,9 @@ while read file; do										# For every fasta file found
     if [[ -e "$file" && -r "$file" ]]; then							# Check if it exists (is not a broken link) and if it is readable.
         vfiles="$vfiles$file"$'\n'								# If positive, store the filename in vfiles with a newline.
     elif [[ -e "$file" ]]; then									# If file exists (is not a broken symlink) but is not readable, don't include.
-        echo "# Warning: file $(basename "$file") is not readable. It will be ignored."
+        echo "-- Warning: file $(basename "$file") is not readable. It will be ignored."
     else											# If file doesn't exist (broken symlink), don't include.
-        echo "# Warning: file $(basename "$file") is a broken symlink. It will be ignored."
+        echo "-- Warning: file $(basename "$file") is a broken symlink. It will be ignored."
     fi
 done <<< "$files"										# Need to redirect input like this because with cat + pipe, operations are done in a 
 												# subshell and the list vfiles is not saved outside
@@ -145,9 +145,9 @@ vfiles=$(echo "$vfiles" | head -n -1)								# Eliminate the last line generated
 
 # Compute the total number of unique IDs in all valid files. Cat all files, get all non-header lines, print seq ID, get how many unique IDs there are
 
-uniqID_total=$(cat $vfiles | awk '/>/{print $1}' | sort | uniq | wc -l 2>/dev/null) || {	# ChatGPT: If there is an error, silence it by redirecting std error to dev/null.	
-    echo "ERROR: Failed to calculate unique IDs."				
-}		
+uniqID_total=$( { cat $vfiles | awk '/>/{print $1}' | sort | uniq | wc -l; } 2>/dev/null) || {	# ChatGPT: If there is an error, silence it by redirecting std error to dev/null.	
+    echo "ERROR: Failed to calculate unique IDs."						# Using {} as block to not open a subshell (parenthesis would not store variables)				
+}												# The last semicolon is only sintaxis for {}, which need a newline before }.
 
 # Print the total number of unique sequence IDs
 echo "# Total unique sequence IDs: "$uniqID_total".\n"
@@ -174,11 +174,11 @@ echo "$vfiles" | while read file; do						# Iterate for every fasta found.
 	
 # Cleaning the sequences ($cleanseq). Get total seq length.
 # Cat $file, with awk get non-headers, print everything using nothing as separator (ORS=""). With sed eliminate everything but letters (case insensitive)
-# ChatGPT: If there is an error, silence it by redirecting std error to dev/null.
+# ChatGPT suggest to redirect input as <"$file" rather than using cat
 	
-	cleanseq=$(awk '!/^>/{ORS="";print}' < "$file" | sed 's/[^A-Za-z]//g' 2>/dev/null) || {		
-		echo "ERROR: Failed to clean the sequence. Skipping file."
-		continue							# Skip file
+	cleanseq=$( { awk '!/^>/{ORS="";print}' < "$file" | sed 's/[^A-Za-z]//g'; } 2>/dev/null) || {		
+		echo "ERROR: Failed to clean the sequence. Skipping file."	# ChatGPT: If there is an error, silence it by redirecting std error to dev/null.
+		continue							# Skip file if no clean sequence is retrieved
 	}			
 										
 	seqlength=$(echo -n "$cleanseq" | wc -c)				# Get the total length of $cleanseq (containing all sequences in the file)
