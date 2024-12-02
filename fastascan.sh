@@ -146,7 +146,7 @@ echo "$files" | while read file; do
 	# Cleaning the sequences and merging them.
 	cleanseq=$(cat "$file" | awk '!/^>/{ORS="";print}' | sed 's/[^A-Za-z]//g')	# Cat $file, with awk get non-headers, print everything using nothing as separator (ORS="") 
 											# With sed eliminate everything but letters (case insensitive)
-	seqlength=$(echo -n "$cleanseq" | wc -c) # Compute total length.		# Get the total length of $cleanseq (containing all sequences in the file)
+	seqlength=$(echo -n "$cleanseq" | wc -c)					# Get the total length of $cleanseq (containing all sequences in the file)
 	echo "# Total length of sequences: "$seqlength""
 		
 	# Determine the type of sequence
