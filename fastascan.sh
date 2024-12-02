@@ -84,6 +84,7 @@ elif [[ -n "$1" && -z "$2" ]]; then							# If only one argument is provided...
 else
 	set_path "" 									# If no arguments are provided, use set_path and set_N to use default values for the variables.
 	set_N 0
+ 	echo "++ Use fastascan help for more info.\n"					# Also show a way to get more info about the arguments, just in case user doesn't know the arguments.
 fi
 ####################################   SCANNING DIRECTORY AND SUBDIRECTORIES FOR FA/FASTAS   ####################################
 #--------------------------------------------   Functions controlling for header  -----------------------------------------------
