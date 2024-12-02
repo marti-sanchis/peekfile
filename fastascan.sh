@@ -62,41 +62,41 @@ set_N(){
 	}
 }
 #--------------------------------------------   Setting directory and N correctly   ---------------------------------------------
-if [[ -n "$1" && -n "$2"  ]]; then					# If two arguments are provided (should be directory and N)
-	[[ "$1" =~ ^[0-9] && ("$2" =~ .*/.* || "$2" == \.) ]] && err 3	# ensure they are in the correct order. If not print error 3 from err() which stops the script
-	if [[ -d "$1" && "$2" =~ ^[0-9]+$ ]]; then			# If $1 is an existing directory and $2 an integer, set path and set N variables.
+if [[ -n "$1" && -n "$2"  ]]; then							# If two arguments are provided (should be directory and N)
+	[[ "$1" =~ ^[0-9] && ("$2" =~ .*/.* || "$2" == \.) ]] && err 3			# ensure they are in the correct order. If not print error 3 from err() which stops the script
+	if [[ -d "$1" && "$2" =~ ^[0-9]+$ ]]; then					# If $1 is an existing directory and $2 an integer, set path and set N variables.
 		set_path "$1"
 		set_N "$2"
-	else								# If not, give error 1 from err(): one or both arguments are not valid.
+	else										# If not, give error 1 from err(): one or both arguments are not valid.
 		err 1
 	fi
 	
-elif [[ -n "$1" && -z "$2" ]]; then					# If only one argument is provided... 
-	if [[ -d "$1" ]]; then						# see if it is a directory and set path with the argument, and N by default.
+elif [[ -n "$1" && -z "$2" ]]; then							# If only one argument is provided... 
+	if [[ -d "$1" ]]; then								# see if it is a directory and set path with the argument, and N by default.
 		set_path "$1"
 		set_N 0
-	elif [[ "$1" =~ ^[0-9]+$ ]]; then				# see if it is an integer and set path by default and N with the argument.
+	elif [[ "$1" =~ ^[0-9]+$ ]]; then						# see if it is an integer and set path by default and N with the argument.
 		set_path "" 
 		set_N "$1"
 	else
 		err 2
 	fi
 else
-	set_path "" 							# If no arguments are provided, use set_path and set_N to use default values for the variables.
+	set_path "" 									# If no arguments are provided, use set_path and set_N to use default values for the variables.
 	set_N 0
 fi
 ####################################   SCANNING DIRECTORY AND SUBDIRECTORIES FOR FA/FASTAS   ####################################
 #--------------------------------------------   Functions controlling for header  -----------------------------------------------
-peek(){									# This function will have two arguments: $1 is the file to cat, and $2 a number of lines
+peek(){											# This function will have two arguments: $1 is the file to cat, and $2 a number of lines
 	print_N="$2" 
-	total_lines=$(wc -l < "$1")					# Set a variable with the total number of lines in a file provided as < $file to command wc -l
+	total_lines=$(wc -l < "$1")							# Set a variable with the total number of lines in a file provided as < $file to command wc -l
 	
-	[[ "$print_N" -eq 0 ]] && return				# If N=0, skip the iteration for this file and don't print anything
+	[[ "$print_N" -eq 0 ]] && return						# If N=0, skip the iteration for this file and don't print anything
 	
-	if [[ "$total_lines" -le $((2 * "$print_N")) ]]; then		# If the total lines is less than 2N, print the whole content of the file.
+	if [[ "$total_lines" -le $((2 * "$print_N")) ]]; then				# If the total lines is less than 2N, print the whole content of the file.
 		cat "$1"
 		echo "# Full content of the file."
-	else								# If not, just print the first and last N lines of $file with commands head and tail (separated by ...)
+	else										# If not, just print the first and last N lines of $file with commands head and tail (separated by ...)
   		echo "\n# Showing the first and last "$print_N" lines of the file."
 		head -n "$print_N" "$1"
 		echo "..."
