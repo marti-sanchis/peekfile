@@ -106,8 +106,7 @@ peek(){											# This function will have two arguments: $1 is the file to cat
 }
 #------------------------------------------------   FASTA count and unique   ----------------------------------------------------
 echo "SCAN RESULTS:"
-# Do only one search, for files or symlinks that are fa/fasta. Assign to variable $files.
-files=$(find "$path" \( -type f -o -type l \) \( -name "*.fa" -or -name "*.fasta" \) )
+files=$(find "$path" \( -type f -o -type l \) \( -name "*.fa" -or -name "*.fasta" \) )	# Do only one search, for files or symlinks that are fa/fasta. Assign to variable $files.
 
 # If bash finds any fasta (tested as $files is not null?)...
 if [[ -n "$files" ]]; then
@@ -138,7 +137,7 @@ echo "$files" | while read file; do
 	fi
 	
 	# Count the number of headers in the file
-	seqcount=$(grep -c "^>" $file)							# Count with grep -c the number of headers/sequences in the file
+	seqcount=$(grep -c "^>" "$file")						# Count with grep -c the number of headers/sequences in the file
 	echo "# Count of sequences: "$seqcount""
 	
 	# If the file doesn't contain any header, omit the rest of operations (skip iteration).
