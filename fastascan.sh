@@ -169,7 +169,7 @@ echo "$files" | while read file; do							# Iterate for every fasta found.
     	elif [[ $(echo -n "$cleanseq") =~ [MmKk] ]];then
     		echo "# Sequence type: PROTEIN"						# If contain methionine or lysine, sequence should be from protein.
     	else
-    		echo "# Sequence type not recognised"					# If everything was negative, print enable to identify type of seq.
+    		echo "# Sequence type not recognised"					# If everything was negative, print unable to identify type of seq.
 	fi
 	
 # Finally print the content of file using the peek() function.
